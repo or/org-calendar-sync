@@ -1,0 +1,7 @@
+[general]
+port = 8991
+
+[calendar team]
+directory = ~/Library/Calendars/F8752134-09A6-4648-ACB2-69C833BE3483.exchange/69155533-E3FD-46BC-BED1-670798E38D60.calendar
+name = Team
+description = Shared team calendar
