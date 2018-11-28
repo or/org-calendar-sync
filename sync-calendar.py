@@ -30,7 +30,6 @@ def remove_brackets(s):
 
     return s.replace("[", "").replace("]", "")
 
-
 def fix_title(s):
     if not s:
         return s
@@ -48,43 +47,26 @@ def convert_to_tag(name):
 
 def create_element(args, events):
     event = events[0]
-
     element = PyOrgMode.OrgNode.Element()
     element.level = 1
-    element.heading = fix_title(event.title()) + "            "
-    element.tags = [convert_to_tag(event.calendar().title())]
+    element.heading = fix_title(event["title"])
+    if event.get("duration"):
+        element.heading = "[" + event["duration"] + "] " + element.heading
 
-    if args.include_duration:
-        first_start = dateparser.parse(str(event.startDate())).astimezone(pytz.timezone("Europe/Berlin"))
-        first_end = dateparser.parse(str(event.endDate())).astimezone(pytz.timezone("Europe/Berlin"))
-        duration_str = ""
-        duration = first_end - first_start
-        if duration.total_seconds() >= 86400:
-            duration_str = "day"
-        else:
-            hours = duration.seconds / 3600
-            if hours == 0.25:
-                duration_str = "1/4h"
-            elif hours == 0.5:
-                duration_str = "1/2h"
-            elif hours == 0.75:
-                duration_str = "3/4h"
-            elif hours < 1:
-                mins = duration.seconds // 60
-                duration_str = f"{mins}m"
-            else:
-                duration_str = f"{hours:.1f}h"
+    if event.get("part"):
+        element.heading = element.heading + " [" + event["part"] + "]"
 
-        element.heading = f"[{duration_str}] " + element.heading
+    # assure some distance of the tags
+    element.heading += "            "
+    element.tags = [convert_to_tag(event["event"].calendar().title())]
 
     drawer = PyOrgMode.OrgDrawer.Element("SCHEDULE")
     element.append_clean(drawer)
 
     for e in events:
-        start = dateparser.parse(str(e.startDate())).astimezone(pytz.timezone("Europe/Berlin"))
-
+        start = e["start"]
         if args.include_end_time:
-            end = dateparser.parse(str(e.endDate())).astimezone(pytz.timezone("Europe/Berlin"))
+            end = e["end"]
             if (end.hour, end.minute, end.second) == (0, 0, 0):
                 end -= timedelta(seconds=1)
 
@@ -102,21 +84,82 @@ def add_events(args, org_data, events):
         org_data.root.append_clean(element)
         org_data.root.append_clean("\n")
 
-def get_key(event):
-    uid = event.sharedUID()
+def get_duration_string(start, end):
+    duration = end - start
+    if duration.total_seconds() >= 86400 - 1:
+        return "day"
+
+    hours = duration.seconds / 3600
+    if hours == 0.25:
+        return "1/4h"
+
+    elif hours == 0.5:
+        return "1/2h"
+
+    elif hours == 0.75:
+        return "3/4h"
+
+    elif hours < 1:
+        mins = duration.seconds // 60
+        return f"{mins}m"
+
+    return f"{hours:.1f}h"
+
+def transform_event(args, event):
+    new_events = []
     start = dateparser.parse(str(event.startDate())).astimezone(pytz.timezone("Europe/Berlin"))
     end = dateparser.parse(str(event.endDate())).astimezone(pytz.timezone("Europe/Berlin"))
-    duration = end - start
-    if duration.total_seconds() > 86400:
-        # make sure multi day events are not grouped
-        return (uid, duration.seconds, str(start))
 
-    return (uid, duration.seconds)
+    current = start
+    while True:
+        e = {
+            "start": current,
+            "title": event.title(),
+            "event": event,
+        }
+
+        if current.date() == end.date():
+            if (end - current).total_seconds() >= 60:
+                e["end"] = end
+                new_events.append(e)
+
+            break
+
+        e["end"] = datetime(current.year, current.month, current.day, 23, 59, 59, tzinfo=current.tzinfo)
+        new_events.append(e)
+
+        current += timedelta(days=1)
+        current = datetime(current.year, current.month, current.day, 0, 0, 0, tzinfo=current.tzinfo)
+
+    num_events = len(new_events)
+    for i, e in enumerate(new_events, start=1):
+        if args.include_duration:
+            e["duration"] = get_duration_string(e["start"], e["end"])
+
+        if num_events > 1:
+            e["part"] = f"{i}/{num_events}"
+
+    return new_events
+
+def get_key(event):
+    duration = event["end"] - event["start"]
+
+    return (
+        event["event"].sharedUID(),
+        event["title"],
+        event.get("duration", ""),
+        event.get("part", ""),
+        duration.seconds)
 
 def import_to_org(args, events):
     org_data = PyOrgMode.OrgDataStructure()
-    grouped_events = {}
+
+    transformed_events = []
     for event in events:
+        transformed_events += transform_event(args, event)
+
+    grouped_events = {}
+    for event in transformed_events:
         key = get_key(event)
         grouped_events[key] = grouped_events.get(key, []) + [event]
 
