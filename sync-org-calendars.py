@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import dateparser
 import pytz
 import re
+import threading
+import time
 import warnings
 from datetime import datetime, timedelta
 from configparser import ConfigParser, NoOptionError, NoSectionError
@@ -12,7 +13,8 @@ from icalendar import Calendar, Event
 from os.path import expanduser
 from PyOrgMode import PyOrgMode
 from time import mktime
-from ics_merger import merge_files
+from orgmode_sync.ics_merger import merge_files
+from orgmode_sync.orgmode_sync import get_events, import_to_org
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -97,6 +99,7 @@ def collect_times_from_org_files(files):
                 continue
 
             elif isinstance(element, PyOrgMode.OrgDrawer.Element):
+                copied_path = tuple(path)
                 for line in element.content:
                     if not isinstance(line, str):
                         continue
@@ -105,13 +108,9 @@ def collect_times_from_org_files(files):
                     if not mo:
                         continue
 
-                    settings = {
-                        'TIMEZONE': TIMEZONE,
-                        'RETURN_AS_TIMEZONE_AWARE': True,
-                    }
-                    start = dateparser.parse(mo.group("start"), settings=settings)
-                    end = dateparser.parse(mo.group("end"), settings=settings)
-                    results["clocks"].append((list(path), start, end))
+                    start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=pytz.timezone("Europe/Berlin"))
+                    end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=pytz.timezone("Europe/Berlin"))
+                    results["clocks"].append((copied_path, start, end))
 
             elif isinstance(element, PyOrgMode.OrgSchedule.Element):
                 for w in ("deadline", "scheduled", "closed"):
@@ -169,11 +168,8 @@ def load_calendars(config):
 
     return calendars
 
-def run(args):
-    config = ConfigParser()
-    config.read(expanduser(args.config))
-    RequestHandler.calendars = load_calendars(config)
 
+def serve_calendars(config):
     port = get_port(config)
     server_address = ("127.0.0.1", port)
     httpd = HTTPServer(server_address, RequestHandler)
@@ -185,9 +181,77 @@ def run(args):
 
     httpd.serve_forever()
 
+def import_calendar(config):
+    output_file = config.get("import", "output_file")
+
+    if config.has_option("import", "delay"):
+        delay = config.getint("import", "delay")
+    else:
+        delay = 300
+
+    if config.has_option("import", "num_days"):
+        num_days = config.getint("import", "num_days")
+    else:
+        num_days = 30
+
+    if config.has_option("import", "include_end_time"):
+        include_end_time = config.getboolean("import", "include_end_time")
+    else:
+        include_end_time = None
+
+    if config.has_option("import", "include_duration"):
+        include_duration = config.getboolean("import", "include_duration")
+    else:
+        include_duration = None
+
+    if config.has_option("import", "include_calendars"):
+        include_calendars = config.get("import", "include_calendars").split()
+    else:
+        include_calendars = None
+
+    if config.has_option("import", "exclude_calendars"):
+        exclude_calendars = config.get("import", "exclude_calendars").split()
+    else:
+        exclude_calendars = None
+
+    while True:
+        start_time = datetime.now() - timedelta(days=num_days)
+        end_time = datetime.now() + timedelta(days=num_days)
+        events = get_events(
+            start_time,
+            end_time,
+            include_calendars=include_calendars,
+            exclude_calendars=exclude_calendars)
+
+        print("importing calendars to org...")
+        import_to_org(
+            events,
+            output_file=output_file,
+            include_end_time=include_end_time,
+            include_duration=include_duration)
+
+        time.sleep(delay)
+
+def run(args):
+    config = ConfigParser()
+    config.read(expanduser(args.config))
+    RequestHandler.calendars = load_calendars(config)
+
+    serve_calendars(config)
+    serve_thread = threading.Thread(target=serve_calendars, args=(config,))
+    import_thread = threading.Thread(target=import_calendar, args=(config,))
+    serve_thread.start()
+    import_thread.start()
+
+    serve_thread.join()
+    import_thread.join()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", "-c", default="~/.serve-org-calendars.conf", help="the config file to load")
+    parser.add_argument("--config", "-c", default="~/.sync-org-calendars.conf", help="the config file to load")
 
     args = parser.parse_args()
+    # files = ["~/test.org"]
+    # data = create_calendar(files, "deadline")
+    # open("test.ics", "wb").write(data)
     run(args)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 
-from ics_merger import merge_files
+from orgmode_sync.ics_merger import merge_files
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
