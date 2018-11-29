@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import dateparser
 import pytz
+import re
+import warnings
 from datetime import datetime, timedelta
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from glob import glob
@@ -9,10 +12,13 @@ from icalendar import Calendar, Event
 from os.path import expanduser
 from PyOrgMode import PyOrgMode
 from time import mktime
-
 from ics_merger import merge_files
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 ORG_CALENDARS = ("deadline", "scheduled", "closed", "clocks")
+CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
+TIMEZONE = "Europe/Berlin"
 
 def get_org_files():
     return glob(expanduser(expanduser("~/org/**/*.org")), recursive=True) + \
@@ -46,7 +52,28 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(data)
 
-def create_calendar(files, which):
+def clean_heading(heading):
+    return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading)
+
+def read_time_from_element(element, which, results):
+    if not hasattr(element, which) or \
+       not hasattr(getattr(element, which), "value"):
+        return
+
+    value = getattr(element, which).value
+    if isinstance(value, str):
+        # whichasn't parsed by PyOrgMode, so probably something like
+        # <2018-12-09 Sun 06:30 ++2w/3w -2d>
+        # ignore these
+        return
+
+    dt = datetime.fromtimestamp(
+        mktime(value),
+        pytz.timezone("Europe/Berlin"))
+
+    return dt
+
+def collect_times_from_org_files(files):
     results = {}
     for w in ORG_CALENDARS:
         results[w] = []
@@ -66,28 +93,48 @@ def create_calendar(files, which):
 
             if isinstance(element, PyOrgMode.OrgNode.Element):
                 todo = element.content + [None] + todo
-                path.append(element.heading)
+                path.append(clean_heading(element.heading))
                 continue
 
-            if isinstance(element, PyOrgMode.OrgSchedule.Element):
-                for w in ("deadline", "scheduled", "closed"):
-                    if not hasattr(element, w) or \
-                       not hasattr(getattr(element, w), "value"):
+            elif isinstance(element, PyOrgMode.OrgDrawer.Element):
+                for line in element.content:
+                    if not isinstance(line, str):
                         continue
 
-                    dt = datetime.fromtimestamp(
-                        mktime(getattr(element, w).value),
-                        pytz.timezone("Europe/Berlin"))
+                    mo = CLOCK_PATTERN.match(line)
+                    if not mo:
+                        continue
 
-                    results[w].append((list(path), dt))
+                    settings = {
+                        'TIMEZONE': TIMEZONE,
+                        'RETURN_AS_TIMEZONE_AWARE': True,
+                    }
+                    start = dateparser.parse(mo.group("start"), settings=settings)
+                    end = dateparser.parse(mo.group("end"), settings=settings)
+                    results["clocks"].append((list(path), start, end))
 
+            elif isinstance(element, PyOrgMode.OrgSchedule.Element):
+                for w in ("deadline", "scheduled", "closed"):
+                    dt = read_time_from_element(element, w, results)
+                    if dt:
+                        results[w].append((list(path), dt, None))
+
+    return results
+
+def create_calendar(files, which):
+    results = collect_times_from_org_files(files)
     cal = Calendar()
     cal.add('prodid', '-//serve-org-calendar//v0.1//')
     cal.add('version', '2.0')
     cal.add('calscale', "GREGORIAN")
     cal.add("X-WR-CALNAME;VALUE=TEXT", which)
     cal.add("X-WR-CALDESC;VALUE=TEXT", which + " imported from org-mode")
-    for path, dt in results[which]:
+    min_time = datetime.now(pytz.timezone(TIMEZONE)) - timedelta(days=30)
+    max_time = datetime.now(pytz.timezone(TIMEZONE)) + timedelta(days=30)
+    for path, dt, dtend in results[which]:
+        if dt < min_time or dt > max_time:
+            continue
+
         event = Event()
         headings = [x.strip() for x in path if x.strip()]
         if not headings:
@@ -95,7 +142,9 @@ def create_calendar(files, which):
         event.add('summary', headings[-1])
         event.add('description', '\n'.join("*" * i + " " + x for i, x in enumerate(headings)))
         event.add('dtstart', dt)
-        event.add('dtend', dt + timedelta(seconds=15 * 60))
+        if not dtend:
+            dtend = dt + timedelta(seconds=15 * 60)
+        event.add('dtend', dtend)
         event.add('dtstamp', dt)
         cal.add_component(event)
 
