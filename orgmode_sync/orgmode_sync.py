@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import dateparser
 import os.path
-import pytz
 from datetime import datetime, timedelta
 from EventKit import EKEventStore, EKEntityMaskEvent, NSDate
 from PyOrgMode import PyOrgMode
+from tzlocal import get_localzone
 
 ORG_TIME_FORMAT = "%Y-%m-%d %a %H:%M"
+TIMEZONE = get_localzone()
 
 def get_events(start_time, end_time,
                include_calendars=None,
@@ -113,8 +114,8 @@ def get_duration_string(start, end):
 
 def transform_event(event, include_duration=False):
     new_events = []
-    start = dateparser.parse(str(event.startDate())).astimezone(pytz.timezone("Europe/Berlin"))
-    end = dateparser.parse(str(event.endDate())).astimezone(pytz.timezone("Europe/Berlin"))
+    start = dateparser.parse(str(event.startDate())).astimezone(TIMEZONE)
+    end = dateparser.parse(str(event.endDate())).astimezone(TIMEZONE)
 
     current = start
     while True:

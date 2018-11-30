@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import pytz
 import re
 import threading
 import time
@@ -13,6 +12,8 @@ from icalendar import Calendar, Event
 from os.path import expanduser
 from PyOrgMode import PyOrgMode
 from time import mktime
+from tzlocal import get_localzone
+
 from orgmode_sync.ics_merger import merge_files
 from orgmode_sync.orgmode_sync import get_events, import_to_org
 
@@ -20,7 +21,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 ORG_CALENDARS = ("deadline", "scheduled", "closed", "clocks")
 CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
-TIMEZONE = "Europe/Berlin"
+TIMEZONE = get_localzone()
 
 def get_org_files():
     return glob(expanduser(expanduser("~/org/**/*.org")), recursive=True) + \
@@ -69,9 +70,7 @@ def read_time_from_element(element, which, results):
         # ignore these
         return
 
-    dt = datetime.fromtimestamp(
-        mktime(value),
-        pytz.timezone("Europe/Berlin"))
+    dt = datetime.fromtimestamp(mktime(value), TIMEZONE)
 
     return dt
 
@@ -108,8 +107,8 @@ def collect_times_from_org_files(files):
                     if not mo:
                         continue
 
-                    start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=pytz.timezone("Europe/Berlin"))
-                    end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=pytz.timezone("Europe/Berlin"))
+                    start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                    end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
                     results["clocks"].append((copied_path, start, end))
 
             elif isinstance(element, PyOrgMode.OrgSchedule.Element):
@@ -128,8 +127,8 @@ def create_calendar(files, which):
     cal.add('calscale', "GREGORIAN")
     cal.add("X-WR-CALNAME;VALUE=TEXT", which)
     cal.add("X-WR-CALDESC;VALUE=TEXT", which + " imported from org-mode")
-    min_time = datetime.now(pytz.timezone(TIMEZONE)) - timedelta(days=30)
-    max_time = datetime.now(pytz.timezone(TIMEZONE)) + timedelta(days=30)
+    min_time = datetime.now(TIMEZONE) - timedelta(days=30)
+    max_time = datetime.now(TIMEZONE) + timedelta(days=30)
     for path, dt, dtend in results[which]:
         if dt < min_time or dt > max_time:
             continue
