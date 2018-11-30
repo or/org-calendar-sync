@@ -1,2 +1,2 @@
-pyobjc
+pyobjc==5.1.1
 git+https://github.com/or/PyOrgMode
