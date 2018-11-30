@@ -1,4 +1,4 @@
-def merge_files(calendar_name, calendar_description, files):
+def merge_ics_files(calendar_name, calendar_description, files):
     data = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//xor//merger v1.0//EN

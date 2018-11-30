@@ -2,7 +2,7 @@
 import argparse
 from datetime import datetime, timedelta
 
-from orgmode_sync.orgmode_sync import get_events, import_to_org
+from org_calendar_sync import get_events, import_to_org
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

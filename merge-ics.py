@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 
-from orgmode_sync.ics_merger import merge_files
+from org_calendar_sync.ics_merger import merge_ics_files
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -11,6 +11,6 @@ if __name__ == "__main__":
     parser.add_argument("files", nargs="+", help="the files to merge")
 
     args = parser.parse_args()
-    data = merge_files(args.calendar_name, args.calendar_description, args.files)
+    data = merge_ics_files(args.calendar_name, args.calendar_description, args.files)
     with open(args.output, "w") as f:
         f.write(data)

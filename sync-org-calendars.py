@@ -15,8 +15,8 @@ from PyOrgMode import PyOrgMode
 from time import mktime
 from tzlocal import get_localzone
 
-from orgmode_sync.ics_merger import merge_files
-from orgmode_sync.orgmode_sync import get_events, import_to_org
+from org_calendar_sync.ics_merger import merge_ics_files
+from org_calendar_sync import get_events, import_to_org
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -46,7 +46,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def send_calendar(self, calendar):
         files = glob(expanduser(calendar["directory"]) + "/**/*.ics")
-        data = merge_files(calendar["name"], calendar["description"], files)
+        data = merge_ics_files(calendar["name"], calendar["description"], files)
         self.send_calendar_file(data)
 
     def send_calendar_file(self, data):
