@@ -19,7 +19,7 @@ from orgmode_sync.orgmode_sync import get_events, import_to_org
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-ORG_CALENDARS = ("deadline", "scheduled", "closed", "clocks")
+ORG_CALENDARS = ("active-deadline", "deadline", "active-scheduled", "scheduled", "closed", "clocks")
 CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
 TIMEZONE = get_localzone()
 
@@ -58,7 +58,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 def clean_heading(heading):
     return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading)
 
-def read_time_from_element(element, which, results):
+def read_time_from_element(element, which):
     if not hasattr(element, which) or \
        not hasattr(getattr(element, which), "value"):
         return
@@ -112,10 +112,18 @@ def collect_times_from_org_files(files):
                     results["clocks"].append((copied_path, start, end))
 
             elif isinstance(element, PyOrgMode.OrgSchedule.Element):
-                for w in ("deadline", "scheduled", "closed"):
-                    dt = read_time_from_element(element, w, results)
+                closed = read_time_from_element(element, "closed")
+                is_closed = False
+                if closed:
+                    results["closed"].append((list(path), closed, None))
+                    is_closed = True
+
+                for w in ("deadline", "scheduled"):
+                    dt = read_time_from_element(element, w)
                     if dt:
                         results[w].append((list(path), dt, None))
+                        if not is_closed:
+                            results["active-" + w].append((list(path), dt, None))
 
     return results
 
