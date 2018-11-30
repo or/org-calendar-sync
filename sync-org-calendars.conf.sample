@@ -1,4 +1,4 @@
-[general]
+[serve]
 port = 8991
 
 [calendar team]

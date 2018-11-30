@@ -4,8 +4,8 @@ import re
 import threading
 import time
 import warnings
+from configparser import ConfigParser
 from datetime import datetime, timedelta
-from configparser import ConfigParser, NoOptionError, NoSectionError
 from glob import glob
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from icalendar import Calendar, Event
@@ -148,12 +148,6 @@ def create_calendar(files, which):
 
     return cal.to_ical()
 
-def get_port(config):
-    try:
-        return config.getint("general", "port")
-    except (NoSectionError, NoOptionError):
-        return 8991
-
 def load_calendars(config):
     calendars = {}
     for section in config.sections():
@@ -167,13 +161,18 @@ def load_calendars(config):
 
     return calendars
 
-
 def serve_calendars(config):
-    port = get_port(config)
+    RequestHandler.calendars = load_calendars(config)
+
+    if config.has_option("serve", "port"):
+        port = config.getint("serve", "port")
+    else:
+        port = 8991
+
     server_address = ("127.0.0.1", port)
     httpd = HTTPServer(server_address, RequestHandler)
     print(f"running server: http://127.0.0.1:{port}/")
-    for name, calendar in RequestHandler.calendars.items():
+    for name, calendar in calendars_to_serve.items():
         print(f"    serving http://127.0.0.1:{port}/{name}/")
         for w in ORG_CALENDARS:
             print(f"    serving http://127.0.0.1:{port}/org/{w}/")
@@ -234,7 +233,6 @@ def import_calendar(config):
 def run(args):
     config = ConfigParser()
     config.read(expanduser(args.config))
-    RequestHandler.calendars = load_calendars(config)
 
     serve_calendars(config)
     serve_thread = threading.Thread(target=serve_calendars, args=(config,))
