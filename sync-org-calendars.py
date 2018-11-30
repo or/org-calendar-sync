@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os.path
 import re
 import threading
 import time
@@ -23,13 +24,16 @@ ORG_CALENDARS = ("active-deadline", "deadline", "active-scheduled", "scheduled",
 CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
 TIMEZONE = get_localzone()
 
+org_directory = None
+calendars_to_serve = {}
+
 def get_org_files():
-    return glob(expanduser(expanduser("~/org/**/*.org")), recursive=True) + \
-        glob(expanduser(expanduser("~/org/**/*.org_archive")), recursive=True)
+    return glob(expanduser(expanduser(os.path.join(org_directory, "**/*.org"))), recursive=True) + \
+        glob(expanduser(expanduser(os.path.join(org_directory, "**/*.org_archive"))), recursive=True)
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        for name, calendar in RequestHandler.calendars.items():
+        for name, calendar in calendars_to_serve.items():
             if self.path == "/" + name + "/":
                 self.send_calendar(calendar)
                 return
@@ -170,7 +174,9 @@ def load_calendars(config):
     return calendars
 
 def serve_calendars(config):
-    RequestHandler.calendars = load_calendars(config)
+    global calendars_to_serve, org_directory
+    calendars_to_serve = load_calendars(config)
+    org_directory = config.get("serve", "org_directory")
 
     if config.has_option("serve", "port"):
         port = config.getint("serve", "port")
