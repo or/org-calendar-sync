@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import dateparser
 import os.path
 from datetime import datetime, timedelta
 from EventKit import EKEventStore, EKEntityMaskEvent, NSDate
@@ -8,6 +7,7 @@ from tzlocal import get_localzone
 
 ORG_TIME_FORMAT = "%Y-%m-%d %a %H:%M"
 TIMEZONE = get_localzone()
+TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
 def get_events(start_time, end_time,
                include_calendars=None,
@@ -114,8 +114,8 @@ def get_duration_string(start, end):
 
 def transform_event(event, include_duration=False):
     new_events = []
-    start = dateparser.parse(str(event.startDate())).astimezone(TIMEZONE)
-    end = dateparser.parse(str(event.endDate())).astimezone(TIMEZONE)
+    start = datetime.strptime(str(event.startDate()), TIMESTAMP_FORMAT).astimezone(TIMEZONE)
+    end = datetime.strptime(str(event.endDate()), TIMESTAMP_FORMAT).astimezone(TIMEZONE)
 
     current = start
     while True:
