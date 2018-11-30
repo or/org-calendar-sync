@@ -248,7 +248,6 @@ def run(args):
     config = ConfigParser()
     config.read(expanduser(args.config))
 
-    serve_calendars(config)
     serve_thread = threading.Thread(target=serve_calendars, args=(config,))
     import_thread = threading.Thread(target=import_calendar, args=(config,))
     serve_thread.start()
