@@ -1,16 +1,49 @@
 [serve]
+# port to run the HTTP server on
 port = 8991
+
+# the directory to recursively look for *.org and *.org_archive files to parse
+# for times/events
 org_directory = ~/org
 
 [import]
+# how often to import system calendars
 delay = 300
+
+# where to write the events, this file will be overwritten mercilessly each time
 output_file = ~/org/calendar.org
+
+# how many days before and after "now" to generate events for
 num_days = 30
+
+# whether or not to include the end times of the events, if yes, then the agenda
+# will look like this:
+#   calendar:   10:00-10:15 Stand-up
+# if not, then like this:
+#   calendar:   10:00...... Stand-up
 include_end_time = true
+
+# whether or not to include the duration as prefix in the event name, this is
+# particularly useful if include_end_time is set to false:
+#   calendar:   10:00...... [1/4h] Stand-up
 include_duration = false
+
+# the names of calendars to include, if not given, then all calendars are
+# imported by default (if not excluded by exclude_calendars)
+#include_calendars =
+
+# the names of calendars to exclude, overrides include_calendars
 exclude_calendars = deadline scheduled closed clocks
 
-[calendar team]
-directory = ~/Library/Calendars/F8752134-09A6-4648-ACB2-69C833BE3483.exchange/69155533-E3FD-46BC-BED1-670798E38D60.calendar
-name = Team
-description = Shared team calendar
+# multiple [calendar <name>] sections can be added, which will serve all *.ics
+# files in the given directory as a calendar file, if
+# http://localhost:<port>/foobar/ is requested
+[calendar foobar]
+# the directory to recursively look for *.ics files in
+directory = ~/Library/Calendars/some-uuid.exchange/another-uuid.calendar
+
+# the name of the calendar
+name = Foobar calendar
+
+# the description of the calendar
+description = Foobar description

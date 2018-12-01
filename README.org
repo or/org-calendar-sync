@@ -1,0 +1,65 @@
+* Sync org agenda with OSX Calendars
+I use org-mode heavily on OSX, but a lot of invites to events are handled by the
+Calendar app, so I want the two to talk to each other.
+
+This package tries to accomplish these goals:
+- OSX Calendar events should show up in the org-agenda view
+- time-related data in my org files (scheduled, deadlines, closed, clocks)
+  should show up in the OSX Calendar
+
+So there's two ways in which this is achieved.
+
+** Import OSX Events into a calendar.org regularly
+This uses =PyObjC= to access OSX's =EventKit= and generates a simple org file
+with headings named after the events and having a SCHEDULE entry (or multiple,
+if it is a recurring event).
+
+It splits up multi-day events into chunks of at most day-length, resulting in
+them showing up as 00:00-23:59 events on top of every day in the org-agenda
+view. It also adds a =[<number>/<total>]= (e.g. =[1/5]= on the first day of a
+week's vacation) for each day to indicate how long the whole event is.
+org-agenda does something similar for schedules longer than a day already, but
+it puts that indicator in front of the heading and doesn't associate a time with
+it, so I prefer the explicit split of schedules.
+
+*** Shared calendars / delegates
+Calendar allows adding delegated calendars for Exchange accounts, but it looks
+like =EventKit= doesn't expose those, which posed a problem for me. I worked
+around it with a bit of a hack that goes as follows:
+
+1. Run a HTTP server locally
+2. When the appropriate calendar is requested: merge all *.ics files for the
+   shared calendar and serve it
+3. In Calendar subscribe to that URL, effectively duplicating the shared
+   calendar, but this calendar can be queried via =EventKit=
+4. Hide one of the two calendars in Calendar, so those events don't show up
+   twice
+5. Profit
+
+The script now supports any directory full of *.ics files that can be served as
+calendar, it could also be used to include a different source of such files.
+
+** Export org-related time data to Calendar
+In the other direction the HTTP server serves various calendars based on the
+org-files. Currently that includes these special calendars:
+- scheduled :: all headings with a SCHEDULE entry
+- deadlines :: all headings with a DEADLINE entry
+- closed :: all headings with a CLOSED timestamp
+- active-scheduled :: all headings with a SCHEDULE entry that don't have a
+     CLOSED entry yet
+- active-deadlines :: all headings with a DEADLINE entry that don't have a
+     CLOSED entry yet
+- clocks :: all headings that have CLOCK entries in the LOGBOOK
+
+In Calendar each of those can be subscribed to and shown along side the "real"
+calendars the app knows about. I use =active-scheduled=, =active-deadline= to
+see things coming up, =closed= to see accomplished TODOs, and =clocks= to get a
+view of all the time-tracking. The =clocks= calendar mostly is disabled, so I
+can look at it only when I need that information.
+
+** Setup
+- Install requirements: =pip install -r requirements.pip=
+- Copy =sync-org-calendars.conf.sample= to =~/.sync-org-calendars.conf= and
+  adjust as needed
+- Run =./sync-org-calendars.py= (ideally set up some launch configuration)
+- Subscribe to calendars in Calendar (or Outlook or wherever)
