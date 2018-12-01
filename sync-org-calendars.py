@@ -78,56 +78,82 @@ def read_time_from_element(element, which):
 
     return dt
 
+def cache_until_file_changes(function):
+    cache = {}
+
+    def helper(x):
+        modified_time = os.stat(x).st_mtime
+        cached_data = cache.get(x, None)
+        if cached_data is None or cached_data[0] != modified_time:
+            cached_data = (modified_time, function(x))
+            cache[x] = cached_data
+
+        return cached_data[1]
+
+    return helper
+
+@cache_until_file_changes
+def collect_times_from_org_file(filename):
+    results = {}
+    for w in ORG_CALENDARS:
+        results[w] = []
+
+    org = PyOrgMode.OrgDataStructure()
+    org.load_from_file(expanduser(filename))
+    todo = [org.root]
+    path = []
+    while todo:
+        element = todo.pop(0)
+        if element is None:
+            if path:
+                path.pop(-1)
+
+            continue
+
+        if isinstance(element, PyOrgMode.OrgNode.Element):
+            todo = element.content + [None] + todo
+            path.append(clean_heading(element.heading))
+            continue
+
+        elif isinstance(element, PyOrgMode.OrgDrawer.Element):
+            copied_path = tuple(path)
+            for line in element.content:
+                if not isinstance(line, str):
+                    continue
+
+                mo = CLOCK_PATTERN.match(line)
+                if not mo:
+                    continue
+
+                start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                results["clocks"].append((copied_path, start, end))
+
+        elif isinstance(element, PyOrgMode.OrgSchedule.Element):
+            closed = read_time_from_element(element, "closed")
+            is_closed = False
+            if closed:
+                results["closed"].append((list(path), closed, None))
+                is_closed = True
+
+            for w in ("deadline", "scheduled"):
+                dt = read_time_from_element(element, w)
+                if dt:
+                    results[w].append((list(path), dt, None))
+                    if not is_closed:
+                        results["active-" + w].append((list(path), dt, None))
+
+    return results
+
 def collect_times_from_org_files(files):
     results = {}
     for w in ORG_CALENDARS:
         results[w] = []
 
     for f in files:
-        org = PyOrgMode.OrgDataStructure()
-        org.load_from_file(expanduser(f))
-        todo = [org.root]
-        path = []
-        while todo:
-            element = todo.pop(0)
-            if element is None:
-                if path:
-                    path.pop(-1)
-
-                continue
-
-            if isinstance(element, PyOrgMode.OrgNode.Element):
-                todo = element.content + [None] + todo
-                path.append(clean_heading(element.heading))
-                continue
-
-            elif isinstance(element, PyOrgMode.OrgDrawer.Element):
-                copied_path = tuple(path)
-                for line in element.content:
-                    if not isinstance(line, str):
-                        continue
-
-                    mo = CLOCK_PATTERN.match(line)
-                    if not mo:
-                        continue
-
-                    start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
-                    end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
-                    results["clocks"].append((copied_path, start, end))
-
-            elif isinstance(element, PyOrgMode.OrgSchedule.Element):
-                closed = read_time_from_element(element, "closed")
-                is_closed = False
-                if closed:
-                    results["closed"].append((list(path), closed, None))
-                    is_closed = True
-
-                for w in ("deadline", "scheduled"):
-                    dt = read_time_from_element(element, w)
-                    if dt:
-                        results[w].append((list(path), dt, None))
-                        if not is_closed:
-                            results["active-" + w].append((list(path), dt, None))
+        file_times = collect_times_from_org_file(f)
+        for k, v in file_times.items():
+            results[k] += v
 
     return results
 
