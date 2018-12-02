@@ -65,6 +65,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def send_404(self):
         self.send_response(404)
+        self.end_headers()
 
     def send_file(self, data, mimetype=None):
         self.send_response(200)
