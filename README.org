@@ -59,7 +59,7 @@ can look at it only when I need that information.
 
 ** Setup
 - Install requirements: =pip install -r requirements.pip=
-- Copy =sync-org-calendars.conf.sample= to =~/.sync-org-calendars.conf= and
+- Copy =sync-org-calendar.conf.sample= to =~/.sync-org-calendar.conf= and
   adjust as needed
-- Run =./sync-org-calendars.py= (ideally set up some launch configuration)
+- Run =./sync-org-calendar.py= (ideally set up some launch configuration)
 - Subscribe to calendars in Calendar (or Outlook or wherever)

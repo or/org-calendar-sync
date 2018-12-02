@@ -15,8 +15,8 @@ from PyOrgMode import PyOrgMode
 from time import mktime
 from tzlocal import get_localzone
 
-from org_calendar_sync.ics_merger import merge_ics_files
-from org_calendar_sync import get_events, import_to_org
+from sync_org_calendar.ics_merger import merge_ics_files
+from sync_org_calendar import get_events, import_to_org
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -284,7 +284,7 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", "-c", default="~/.sync-org-calendars.conf", help="the config file to load")
+    parser.add_argument("--config", "-c", default="~/.sync-org-calendar.conf", help="the config file to load")
 
     args = parser.parse_args()
     # files = ["~/test.org"]
