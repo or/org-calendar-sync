@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 import os.path
+import re
 from datetime import datetime, timedelta
 from EventKit import EKEventStore, EKEntityMaskEvent, NSDate
 from PyOrgMode import PyOrgMode
+from time import mktime
 from tzlocal import get_localzone
 
 ORG_TIME_FORMAT = "%Y-%m-%d %a %H:%M"
 TIMEZONE = get_localzone()
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
+ORG_CALENDARS = ("active-deadline", "deadline", "active-scheduled", "scheduled", "closed", "clocks")
+CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
 
 def get_events(start_time, end_time,
                include_calendars=None,
@@ -176,3 +180,101 @@ def import_to_org(events, output_file,
         add_events(org_data, event_group, include_end_time=include_end_time)
 
     open(os.path.expanduser(output_file), "w", encoding="utf-8").write(str(org_data.root))
+
+def clean_heading(heading):
+    return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading)
+
+def read_time_from_element(element, which):
+    if not hasattr(element, which) or \
+       not hasattr(getattr(element, which), "value"):
+        return
+
+    value = getattr(element, which).value
+    if isinstance(value, str):
+        # whichasn't parsed by PyOrgMode, so probably something like
+        # <2018-12-09 Sun 06:30 ++2w/3w -2d>
+        # ignore these
+        return
+
+    dt = datetime.fromtimestamp(mktime(value), TIMEZONE)
+
+    return dt
+
+def cache_until_file_changes(function):
+    cache = {}
+
+    def helper(x):
+        modified_time = os.stat(x).st_mtime
+        cached_data = cache.get(x, None)
+        if cached_data is None or cached_data[0] != modified_time:
+            cached_data = (modified_time, function(x))
+            cache[x] = cached_data
+
+        return cached_data[1]
+
+    return helper
+
+@cache_until_file_changes
+def collect_times_from_org_file(filename):
+    results = {}
+    for w in ORG_CALENDARS:
+        results[w] = []
+
+    org = PyOrgMode.OrgDataStructure()
+    org.load_from_file(os.path.expanduser(filename))
+    todo = [org.root]
+    path = []
+    while todo:
+        element = todo.pop(0)
+        if element is None:
+            if path:
+                path.pop(-1)
+
+            continue
+
+        if isinstance(element, PyOrgMode.OrgNode.Element):
+            todo = element.content + [None] + todo
+            path.append(clean_heading(element.heading))
+            continue
+
+        elif isinstance(element, PyOrgMode.OrgDrawer.Element):
+            copied_path = tuple(path)
+            for line in element.content:
+                if not isinstance(line, str):
+                    continue
+
+                mo = CLOCK_PATTERN.match(line)
+                if not mo:
+                    continue
+
+                start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                results["clocks"].append((copied_path, start, end))
+
+        elif isinstance(element, PyOrgMode.OrgSchedule.Element):
+            closed = read_time_from_element(element, "closed")
+            is_closed = False
+            if closed:
+                results["closed"].append((list(path), closed, None))
+                is_closed = True
+
+            for w in ("deadline", "scheduled"):
+                dt = read_time_from_element(element, w)
+                if dt:
+                    results[w].append((list(path), dt, None))
+                    if not is_closed:
+                        results["active-" + w].append((list(path), dt, None))
+
+    return results
+
+def collect_times_from_org_files(files):
+    results = {}
+    for w in ORG_CALENDARS:
+        results[w] = []
+
+    for f in files:
+        file_times = collect_times_from_org_file(f)
+        for k, v in file_times.items():
+            results[k] += v
+
+    return results

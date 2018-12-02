@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os.path
-import re
 import threading
 import time
 import warnings
@@ -11,18 +11,12 @@ from glob import glob
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from icalendar import Calendar, Event
 from os.path import expanduser
-from PyOrgMode import PyOrgMode
-from time import mktime
-from tzlocal import get_localzone
 
 from sync_org_calendar.ics_merger import merge_ics_files
-from sync_org_calendar import get_events, import_to_org
+from sync_org_calendar import ORG_CALENDARS, TIMEZONE
+from sync_org_calendar import get_events, import_to_org, collect_times_from_org_files
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
-ORG_CALENDARS = ("active-deadline", "deadline", "active-scheduled", "scheduled", "closed", "clocks")
-CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
-TIMEZONE = get_localzone()
 
 org_directory = None
 calendars_to_serve = {}
@@ -33,25 +27,50 @@ def get_org_files():
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        for name, calendar in calendars_to_serve.items():
-            if self.path == "/" + name + "/":
-                self.send_calendar(calendar)
+        if self.path.startswith("/calendar/"):
+            for name, calendar in calendars_to_serve.items():
+                if self.path == "/calendar/" + name + "/":
+                    self.send_calendar(calendar)
+                    return
+
+        elif self.path.startswith("/org/"):
+            for w in ORG_CALENDARS:
+                if self.path == "/org/" + w + "/":
+                    files = get_org_files()
+                    data = create_calendar(files, w)
+                    self.send_file(data, "text/calendar")
+                    return
+
+        elif self.path.startswith("/timeline"):
+            if self.path in ("/timeline", "/timeline/"):
+                self.path = os.path.join(self.path, "index.html")
+
+            if self.path == "/timeline/timeline.json":
+                files = get_org_files()
+                timeline_data = generate_timeline_data(files)
+                self.send_file(json.dumps(timeline_data), "application/json")
                 return
 
-        for w in ORG_CALENDARS:
-            if self.path == "/org/" + w + "/":
-                files = get_org_files()
-                data = create_calendar(files, w)
-                self.send_calendar_file(data)
+            filepath = self.path[1:]
+            if os.path.exists(filepath):
+                self.send_file(open(filepath).read())
+                return
+
+        self.send_404()
 
     def send_calendar(self, calendar):
         files = glob(expanduser(calendar["directory"]) + "/**/*.ics")
         data = merge_ics_files(calendar["name"], calendar["description"], files)
-        self.send_calendar_file(data)
+        self.send_file(data, "text/calendar")
 
-    def send_calendar_file(self, data):
+    def send_404(self):
+        self.send_response(404)
+
+    def send_file(self, data, mimetype=None):
         self.send_response(200)
-        self.send_header("Content-type", "text/calendar")
+        if mimetype:
+            self.send_header("Content-type", mimetype)
+
         self.end_headers()
 
         if isinstance(data, str):
@@ -59,103 +78,30 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(data)
 
-def clean_heading(heading):
-    return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading)
+def generate_timeline_data(files):
+    results = collect_times_from_org_files(files)
+    days = {}
+    for path, start, end in sorted(results["clocks"] + results["scheduled"], key=lambda x: x[1]):
+        day = start.date().isoformat()
+        days[day] = days.get(day, []) + [(path, start, end)]
 
-def read_time_from_element(element, which):
-    if not hasattr(element, which) or \
-       not hasattr(getattr(element, which), "value"):
-        return
+    result = []
+    for day, events in sorted(days.items(), key=lambda x: x[0]):
+        day_events = []
+        for path, start, end in events:
+            if not end:
+                end = start + timedelta(seconds=60)
 
-    value = getattr(element, which).value
-    if isinstance(value, str):
-        # whichasn't parsed by PyOrgMode, so probably something like
-        # <2018-12-09 Sun 06:30 ++2w/3w -2d>
-        # ignore these
-        return
+            day_events.append({
+                "category": "",
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "entry": "->".join(path),
+            })
 
-    dt = datetime.fromtimestamp(mktime(value), TIMEZONE)
+        result.append([day, day_events])
 
-    return dt
-
-def cache_until_file_changes(function):
-    cache = {}
-
-    def helper(x):
-        modified_time = os.stat(x).st_mtime
-        cached_data = cache.get(x, None)
-        if cached_data is None or cached_data[0] != modified_time:
-            cached_data = (modified_time, function(x))
-            cache[x] = cached_data
-
-        return cached_data[1]
-
-    return helper
-
-@cache_until_file_changes
-def collect_times_from_org_file(filename):
-    results = {}
-    for w in ORG_CALENDARS:
-        results[w] = []
-
-    org = PyOrgMode.OrgDataStructure()
-    org.load_from_file(expanduser(filename))
-    todo = [org.root]
-    path = []
-    while todo:
-        element = todo.pop(0)
-        if element is None:
-            if path:
-                path.pop(-1)
-
-            continue
-
-        if isinstance(element, PyOrgMode.OrgNode.Element):
-            todo = element.content + [None] + todo
-            path.append(clean_heading(element.heading))
-            continue
-
-        elif isinstance(element, PyOrgMode.OrgDrawer.Element):
-            copied_path = tuple(path)
-            for line in element.content:
-                if not isinstance(line, str):
-                    continue
-
-                mo = CLOCK_PATTERN.match(line)
-                if not mo:
-                    continue
-
-                start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
-                end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
-                results["clocks"].append((copied_path, start, end))
-
-        elif isinstance(element, PyOrgMode.OrgSchedule.Element):
-            closed = read_time_from_element(element, "closed")
-            is_closed = False
-            if closed:
-                results["closed"].append((list(path), closed, None))
-                is_closed = True
-
-            for w in ("deadline", "scheduled"):
-                dt = read_time_from_element(element, w)
-                if dt:
-                    results[w].append((list(path), dt, None))
-                    if not is_closed:
-                        results["active-" + w].append((list(path), dt, None))
-
-    return results
-
-def collect_times_from_org_files(files):
-    results = {}
-    for w in ORG_CALENDARS:
-        results[w] = []
-
-    for f in files:
-        file_times = collect_times_from_org_file(f)
-        for k, v in file_times.items():
-            results[k] += v
-
-    return results
+    return result
 
 def create_calendar(files, which):
     results = collect_times_from_org_files(files)
@@ -213,7 +159,7 @@ def serve_calendars(config):
     httpd = HTTPServer(server_address, RequestHandler)
     print(f"running server: http://127.0.0.1:{port}/")
     for name, calendar in calendars_to_serve.items():
-        print(f"    serving http://127.0.0.1:{port}/{name}/")
+        print(f"    serving http://127.0.0.1:{port}/calendar/{name}/")
         for w in ORG_CALENDARS:
             print(f"    serving http://127.0.0.1:{port}/org/{w}/")
 
