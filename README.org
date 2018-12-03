@@ -63,3 +63,11 @@ can look at it only when I need that information.
   adjust as needed
 - Run =./sync-org-calendar.py= (ideally set up some launch configuration)
 - Subscribe to calendars in Calendar (or Outlook or wherever)
+*** Run as daemon/agent
+One way is to install a launchctl agent. See
+[[https://github.com/or/dotfiles/blob/master/sync-org-calendar.plist][or/dotfiles:sync-org-calendar.plist]] as an
+example. It needs to be copied to =~/Library/LaunchAgents= and loaded like so:
+#+BEGIN_SRC sh
+launchctl load -w ~/Library/LaunchAgents/sync-org-calendar.plist
+#+END_SRC
+
