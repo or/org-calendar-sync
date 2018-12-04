@@ -12,6 +12,7 @@ TIMEZONE = get_localzone()
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 ORG_CALENDARS = ("active-deadline", "deadline", "active-scheduled", "scheduled", "closed", "clocks")
 CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]--\[(?P<end>.*)\].*')
+INCOMPLETE_CLOCK_PATTERN = re.compile(r'CLOCK: \[(?P<start>.*)\]')
 
 def get_events(start_time, end_time,
                include_calendars=None,
@@ -244,11 +245,18 @@ def collect_times_from_org_file(filename):
                     continue
 
                 mo = CLOCK_PATTERN.match(line)
-                if not mo:
-                    continue
+                if mo:
+                    start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                    end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                else:
+                    mo = INCOMPLETE_CLOCK_PATTERN.match(line)
+                    if not mo:
+                        continue
 
-                start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
-                end = datetime.strptime(mo.group("end"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                    start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
+                    end = datetime.now(TIMEZONE)
+                    print(start, end)
+
                 results["clocks"].append((copied_path, start, end))
 
         elif isinstance(element, PyOrgMode.OrgSchedule.Element):
