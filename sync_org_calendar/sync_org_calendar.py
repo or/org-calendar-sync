@@ -254,8 +254,7 @@ def collect_times_from_org_file(filename):
                         continue
 
                     start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
-                    end = datetime.now(TIMEZONE)
-                    print(start, end)
+                    end = "now"
 
                 results["clocks"].append((copied_path, start, end))
 

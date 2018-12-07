@@ -92,6 +92,8 @@ def generate_timeline_data(files):
         for path, start, end in events:
             if not end:
                 end = start + timedelta(seconds=60)
+            elif end == "now":
+                end = datetime.now(TIMEZONE)
 
             day_events.append({
                 "category": "",
@@ -117,6 +119,9 @@ def create_calendar(files, which):
     for path, dt, dtend in results[which]:
         if dt < min_time or dt > max_time:
             continue
+
+        if dtend == "now":
+            dtend = datetime.now(TIMEZONE)
 
         event = Event()
         headings = [x.strip() for x in path if x.strip()]
