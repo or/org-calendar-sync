@@ -33,6 +33,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                     self.send_calendar(calendar)
                     return
 
+        elif self.path.startswith("/mail/"):
+            data = get_notmuch_data()
+            self.send_file(data, "text/calendar")
+            return
+
         elif self.path.startswith("/org/"):
             for w in ORG_CALENDARS:
                 if self.path == "/org/" + w + "/":
@@ -106,6 +111,48 @@ def generate_timeline_data(files):
 
     return result
 
+def get_notmuch_data():
+    import notmuch
+    db = notmuch.Database()
+    search = db.create_query('date:30days..')
+    messages = list(search.search_messages())
+    messages.sort(key=lambda x: x.get_date())
+    events = []
+    current = [[], None]
+    for msg in messages:
+        if not current[0] or msg.get_date() < current[1]:
+            current[0].append(msg)
+            current[1] = msg.get_date() + 20 * 60
+        else:
+            events.append(current)
+            current = [[msg], msg.get_date() + 20 * 60]
+
+    if current:
+        events.append(current)
+
+    cal = Calendar()
+    cal.add('prodid', '-//serve-org-calendar//v0.1//')
+    cal.add('version', '2.0')
+    cal.add('calscale', "GREGORIAN")
+    cal.add("X-WR-CALNAME;VALUE=TEXT", "mail")
+    cal.add("X-WR-CALDESC;VALUE=TEXT", "mail")
+    for [group, end_ts] in events:
+        dtstart = datetime.fromtimestamp(group[0].get_date())
+        dtend = datetime.fromtimestamp(group[-1].get_date())
+        min_dtend = dtstart + timedelta(seconds=15 * 60)
+        if min_dtend > dtend:
+            dtend = min_dtend
+
+        event = Event()
+        event.add('summary', "{} mails".format(len(group)))
+        event.add('description', "{} mails".format(len(group)))
+        event.add('dtstart', dtstart)
+        event.add('dtend', dtend)
+        event.add('dtstamp', dtstart)
+        cal.add_component(event)
+
+    return cal.to_ical()
+
 def create_calendar(files, which):
     results = collect_times_from_org_files(files)
     cal = Calendar()
@@ -164,6 +211,7 @@ def serve_calendars(config):
     server_address = ("127.0.0.1", port)
     httpd = HTTPServer(server_address, RequestHandler)
     print(f"running server: http://127.0.0.1:{port}/")
+    print(f"running server: http://127.0.0.1:{port}/mail/")
     for name, calendar in calendars_to_serve.items():
         print(f"    serving http://127.0.0.1:{port}/calendar/{name}/")
         for w in ORG_CALENDARS:
