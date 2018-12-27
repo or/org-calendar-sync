@@ -180,7 +180,8 @@ def import_to_org(events, output_file,
     for event_group in grouped_events.values():
         add_events(org_data, event_group, include_end_time=include_end_time)
 
-    open(os.path.expanduser(output_file), "w", encoding="utf-8").write(str(org_data.root))
+    data = str(org_data.root)
+    open(os.path.expanduser(output_file), "w", encoding="utf-8").write(data)
 
 def clean_heading(heading):
     return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading)
