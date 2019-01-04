@@ -176,9 +176,12 @@ def create_calendar(files, which):
             headings = ["dummy"]
         event.add('summary', headings[-1])
         event.add('description', '\n'.join("*" * i + " " + x for i, x in enumerate(headings)))
-        event.add('dtstart', dt)
-        if not dtend:
+        if not dtend and which in ("deadline", "active-deadline") and (dt.minute, dt.hour) == (0, 0):
+            dtend = (dt + timedelta(days=1)).date()
+            dt = dt.date()
+        elif not dtend:
             dtend = dt + timedelta(seconds=15 * 60)
+        event.add('dtstart', dt)
         event.add('dtend', dtend)
         event.add('dtstamp', dt)
         cal.add_component(event)
