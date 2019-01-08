@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import os.path
 import threading
 import time
@@ -212,15 +213,20 @@ def serve_calendars(config):
         port = 8991
 
     server_address = ("127.0.0.1", port)
-    httpd = HTTPServer(server_address, RequestHandler)
-    print(f"running server: http://127.0.0.1:{port}/")
-    print(f"running server: http://127.0.0.1:{port}/mail/")
-    for name, calendar in calendars_to_serve.items():
-        print(f"    serving http://127.0.0.1:{port}/calendar/{name}/")
-        for w in ORG_CALENDARS:
-            print(f"    serving http://127.0.0.1:{port}/org/{w}/")
+    try:
+        httpd = HTTPServer(server_address, RequestHandler)
+        print(f"running server: http://127.0.0.1:{port}/")
+        print(f"    serving http://127.0.0.1:{port}/timeline/")
+        print(f"    serving http://127.0.0.1:{port}/mail/")
+        for name, calendar in calendars_to_serve.items():
+            print(f"    serving http://127.0.0.1:{port}/calendar/{name}/")
+            for w in ORG_CALENDARS:
+                print(f"    serving http://127.0.0.1:{port}/org/{w}/")
 
-    httpd.serve_forever()
+        httpd.serve_forever()
+    except Exception as e:
+        print("starting server failed: {}".format(e))
+        os._exit(1)
 
 def import_calendar(config):
     output_file = config.get("import", "output_file")
@@ -256,22 +262,26 @@ def import_calendar(config):
         exclude_calendars = None
 
     while True:
-        start_time = datetime.now() - timedelta(days=num_days)
-        end_time = datetime.now() + timedelta(days=num_days)
-        events = get_events(
-            start_time,
-            end_time,
-            include_calendars=include_calendars,
-            exclude_calendars=exclude_calendars)
+        try:
+            start_time = datetime.now() - timedelta(days=num_days)
+            end_time = datetime.now() + timedelta(days=num_days)
+            events = get_events(
+                start_time,
+                end_time,
+                include_calendars=include_calendars,
+                exclude_calendars=exclude_calendars)
 
-        print("importing calendars to org...")
-        import_to_org(
-            events,
-            output_file=output_file,
-            include_end_time=include_end_time,
-            include_duration=include_duration)
+            print("importing calendars to org...")
+            import_to_org(
+                events,
+                output_file=output_file,
+                include_end_time=include_end_time,
+                include_duration=include_duration)
 
-        time.sleep(delay)
+            time.sleep(delay)
+        except Exception as e:
+            print("calendar import failed: {}".format(e))
+            os._exit(1)
 
 def run(args):
     config = ConfigParser()
