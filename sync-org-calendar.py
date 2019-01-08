@@ -88,14 +88,17 @@ class RequestHandler(BaseHTTPRequestHandler):
 def generate_timeline_data(files):
     results = collect_times_from_org_files(files)
     days = {}
-    for path, start, end in sorted(results["clocks"] + results["scheduled"], key=lambda x: x[1]):
-        day = start.date().isoformat()
-        days[day] = days.get(day, []) + [(path, start, end)]
+    for clock in sorted(filter(lambda x: x["kind"] in ("clocks", "scheduled"), results), key=lambda x: x["start"]):
+        day = clock["start"].date().isoformat()
+        days[day] = days.get(day, []) + [clock]
 
     result = []
     for day, events in sorted(days.items(), key=lambda x: x[0]):
         day_events = []
-        for path, start, end in events:
+        for clock in events:
+            path = clock["path"]
+            start = clock["start"]
+            end = clock["end"]
             if not end:
                 end = start + timedelta(seconds=60)
             elif end == "now":
@@ -138,18 +141,18 @@ def get_notmuch_data():
     cal.add("X-WR-CALNAME;VALUE=TEXT", "mail")
     cal.add("X-WR-CALDESC;VALUE=TEXT", "mail")
     for [group, end_ts] in events:
-        dtstart = datetime.fromtimestamp(group[0].get_date())
-        dtend = datetime.fromtimestamp(group[-1].get_date())
-        min_dtend = dtstart + timedelta(seconds=15 * 60)
-        if min_dtend > dtend:
-            dtend = min_dtend
+        start = datetime.fromtimestamp(group[0].get_date())
+        end = datetime.fromtimestamp(group[-1].get_date())
+        min_end = start + timedelta(seconds=15 * 60)
+        if min_end > end:
+            end = min_end
 
         event = Event()
         event.add('summary', "{} mails".format(len(group)))
         event.add('description', "{} mails".format(len(group)))
-        event.add('dtstart', dtstart)
-        event.add('dtend', dtend)
-        event.add('dtstamp', dtstart)
+        event.add('dtstamp', start)
+        event.add('dtstart', start)
+        event.add('dtend', end)
         cal.add_component(event)
 
     return cal.to_ical()
@@ -164,12 +167,15 @@ def create_calendar(files, which):
     cal.add("X-WR-CALDESC;VALUE=TEXT", which + " imported from org-mode")
     min_time = datetime.now(TIMEZONE) - timedelta(days=30)
     max_time = datetime.now(TIMEZONE) + timedelta(days=30)
-    for path, dt, dtend in results[which]:
-        if dt < min_time or dt > max_time:
+    for clock in filter(lambda x: x["kind"] == which, results):
+        path = clock["path"]
+        start = clock["start"]
+        end = clock["end"]
+        if start < min_time or start > max_time:
             continue
 
-        if dtend == "now":
-            dtend = datetime.now(TIMEZONE)
+        if end == "now":
+            end = datetime.now(TIMEZONE)
 
         event = Event()
         headings = [x.strip() for x in path if x.strip()]
@@ -177,14 +183,14 @@ def create_calendar(files, which):
             headings = ["dummy"]
         event.add('summary', headings[-1])
         event.add('description', '\n'.join("*" * i + " " + x for i, x in enumerate(headings)))
-        if not dtend and which in ("deadline", "active-deadline") and (dt.minute, dt.hour) == (0, 0):
-            dtend = (dt + timedelta(days=1)).date()
-            dt = dt.date()
-        elif not dtend:
-            dtend = dt + timedelta(seconds=15 * 60)
-        event.add('dtstart', dt)
-        event.add('dtend', dtend)
-        event.add('dtstamp', dt)
+        if not end and which in ("deadline", "active-deadline") and (start.minute, start.hour) == (0, 0):
+            end = (start + timedelta(days=1)).date()
+            start = start.date()
+        elif not end:
+            end = start + timedelta(seconds=15 * 60)
+        event.add('dtstamp', start)
+        event.add('start', start)
+        event.add('dtend', end)
         cal.add_component(event)
 
     return cal.to_ical()

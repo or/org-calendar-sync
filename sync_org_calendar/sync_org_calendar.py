@@ -218,16 +218,13 @@ def cache_until_file_changes(function):
 
 @cache_until_file_changes
 def collect_times_from_org_file(filename):
-    results = {}
-    for w in ORG_CALENDARS:
-        results[w] = []
-
+    results = []
     org = PyOrgMode.OrgDataStructure()
     org.load_from_file(os.path.expanduser(filename))
-    todo = [org.root]
+    nodes_to_process = [org.root]
     path = []
-    while todo:
-        element = todo.pop(0)
+    while nodes_to_process:
+        element = nodes_to_process.pop(0)
         if element is None:
             if path:
                 path.pop(-1)
@@ -235,7 +232,7 @@ def collect_times_from_org_file(filename):
             continue
 
         if isinstance(element, PyOrgMode.OrgNode.Element):
-            todo = element.content + [None] + todo
+            nodes_to_process = element.content + [None] + nodes_to_process
             path.append(clean_heading(element.heading))
             continue
 
@@ -257,32 +254,27 @@ def collect_times_from_org_file(filename):
                     start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
                     end = "now"
 
-                results["clocks"].append((copied_path, start, end))
+                results.append(dict(kind="clocks", path=copied_path, start=start, end=end))
 
         elif isinstance(element, PyOrgMode.OrgSchedule.Element):
             closed = read_time_from_element(element, "closed")
             is_closed = False
             if closed:
-                results["closed"].append((list(path), closed, None))
+                results.append(dict(kind="closed", path=list(path), start=closed, end=None))
                 is_closed = True
 
             for w in ("deadline", "scheduled"):
                 dt = read_time_from_element(element, w)
                 if dt:
-                    results[w].append((list(path), dt, None))
+                    results.append(dict(kind=w, path=list(path), start=dt, end=None))
                     if not is_closed:
-                        results["active-" + w].append((list(path), dt, None))
+                        results.append(dict(kind="active-" + w, path=list(path), start=dt, end=None))
 
     return results
 
 def collect_times_from_org_files(files):
-    results = {}
-    for w in ORG_CALENDARS:
-        results[w] = []
-
+    results = []
     for f in files:
-        file_times = collect_times_from_org_file(f)
-        for k, v in file_times.items():
-            results[k] += v
+        results += collect_times_from_org_file(f)
 
     return results
