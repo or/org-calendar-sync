@@ -70,4 +70,13 @@ example. It needs to be copied to =~/Library/LaunchAgents= and loaded like so:
 #+BEGIN_SRC sh
 launchctl load -w ~/Library/LaunchAgents/sync-org-calendar.plist
 #+END_SRC
-
+*** Troubleshoot
+On the first run OSX should ask permission for the script (the bash script) to
+access Calendar events, this needs to be granted.
+If the script at some point generates an empty org file, then it likely changed
+and no longer has access to the Calendar events.
+In that case reset the Calendar permissions and restart it (either by reboot or
+killing the running instance):
+#+BEGIN_SRC sh
+tccutil reset Calendar
+#+END_SRC
