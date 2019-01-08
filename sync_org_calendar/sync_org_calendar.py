@@ -184,7 +184,7 @@ def import_to_org(events, output_file,
     open(os.path.expanduser(output_file), "w", encoding="utf-8").write(data)
 
 def clean_heading(heading):
-    return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading)
+    return re.sub(r'\[\[.*?\]\[(.*?)\]\]', r'\1', heading).strip()
 
 def read_time_from_element(element, which):
     if not hasattr(element, which) or \
@@ -216,6 +216,13 @@ def cache_until_file_changes(function):
 
     return helper
 
+def combine_and_clean(l):
+    r = set()
+    for x in l:
+        r |= set(t.strip() for t in x)
+
+    return r
+
 @cache_until_file_changes
 def collect_times_from_org_file(filename):
     results = []
@@ -223,17 +230,21 @@ def collect_times_from_org_file(filename):
     org.load_from_file(os.path.expanduser(filename))
     nodes_to_process = [org.root]
     path = []
+    tags = []
     while nodes_to_process:
         element = nodes_to_process.pop(0)
         if element is None:
             if path:
                 path.pop(-1)
+            if tags:
+                tags.pop(-1)
 
             continue
 
         if isinstance(element, PyOrgMode.OrgNode.Element):
             nodes_to_process = element.content + [None] + nodes_to_process
             path.append(clean_heading(element.heading))
+            tags.append(element.tags)
             continue
 
         elif isinstance(element, PyOrgMode.OrgDrawer.Element):
@@ -254,21 +265,49 @@ def collect_times_from_org_file(filename):
                     start = datetime.strptime(mo.group("start"), "%Y-%m-%d %a %H:%M").replace(tzinfo=TIMEZONE)
                     end = "now"
 
-                results.append(dict(kind="clocks", path=copied_path, start=start, end=end))
+                results.append(dict(
+                    kind="clocks",
+                    filename=filename,
+                    path=copied_path,
+                    tags=combine_and_clean(tags),
+                    start=start,
+                    end=end,
+                ))
 
         elif isinstance(element, PyOrgMode.OrgSchedule.Element):
             closed = read_time_from_element(element, "closed")
             is_closed = False
             if closed:
-                results.append(dict(kind="closed", path=list(path), start=closed, end=None))
+                results.append(dict(
+                    kind="closed",
+                    filename=filename,
+                    path=list(path),
+                    tags=combine_and_clean(tags),
+                    start=closed,
+                    end=None,
+                ))
                 is_closed = True
 
             for w in ("deadline", "scheduled"):
-                dt = read_time_from_element(element, w)
-                if dt:
-                    results.append(dict(kind=w, path=list(path), start=dt, end=None))
+                start = read_time_from_element(element, w)
+                if start:
+                    results.append(dict(
+                        kind=w,
+                        filename=filename,
+                        path=list(path),
+                        start=start,
+                        end=None,
+                        tags=combine_and_clean(tags),
+                    ))
                     if not is_closed:
-                        results.append(dict(kind="active-" + w, path=list(path), start=dt, end=None))
+                        results.append(dict(
+                            kind="active-" + w,
+                            filename=filename,
+                            path=list(path),
+                            tags=combine_and_clean(tags),
+                            start=start,
+                            end=None,
+                        ))
 
     return results
 

@@ -163,17 +163,17 @@ function load(element_id) {
                 data = data.concat(d[1].map(function(e) {
                     e.start = new Date(e.start);
                     e.end = new Date(e.end);
-                    if (e.category == "calendar") {
+                    if (e.filename.includes("calendar") || e.path.includes("Meetings")) {
                         e.type = "calendar";
-                    } else if (e.category.startsWith("oncall")) {
+                    } else if (e.filename.includes("oncall") || e.tags.includes("ops")) {
                         e.type = "ops";
-                    } else if (e.entry.indexOf("tt.amazon.com") !== -1) {
+                    } else if (e.name.indexOf("tt.") !== -1) {
                         e.type = "ops";
-                    } else if (e.entry.indexOf("Tasks->") !== -1) {
+                    } else if (e.path.includes("Tasks")) {
                         e.type = "sprint";
-                    } else if (e.entry.indexOf("Extra->") !== -1) {
+                    } else if (e.path.includes("Extra")) {
                         e.type = "extra";
-                    } else if (e.entry.indexOf("sim.amazon.com") !== -1) {
+                    } else if (e.name.indexOf("sim.") !== -1) {
                         e.type = "sprint";
                     } else {
                         e.type = "unknown";
@@ -181,8 +181,7 @@ function load(element_id) {
 
                     typeMap[e.type] = true;
 
-                    var rawEntry = e.entry.replace(/^.*->/, "");
-                    e.pretty = rawEntry.replace(/\[\[[^\]]*\]\[([^\]]*)\]\]/g, "$1");
+                    e.pretty = e.name.replace(/\[\[[^\]]*\]\[([^\]]*)\]\]/g, "$1");
                     e.pretty = e.pretty.replace(/^(TODO|DONE|CANCELLED) /, "");
 
                     return e;

@@ -105,10 +105,12 @@ def generate_timeline_data(files):
                 end = datetime.now(TIMEZONE)
 
             day_events.append({
-                "category": "",
+                "filename": os.path.basename(clock["filename"]),
                 "start": start.isoformat(),
                 "end": end.isoformat(),
-                "entry": "->".join(path),
+                "name": path[-1],
+                "path": path[:-1],
+                "tags": list(clock["tags"]),
             })
 
         result.append([day, day_events])
