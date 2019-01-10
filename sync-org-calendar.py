@@ -191,7 +191,7 @@ def create_calendar(files, which):
         elif not end:
             end = start + timedelta(seconds=15 * 60)
         event.add('dtstamp', start)
-        event.add('start', start)
+        event.add('dtstart', start)
         event.add('dtend', end)
         cal.add_component(event)
 
