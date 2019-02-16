@@ -68,7 +68,7 @@ One way is to install a launchctl agent. See
 [[https://github.com/or/dotfiles/blob/master/sync-org-calendar.plist][or/dotfiles:sync-org-calendar.plist]] as an
 example. It needs to be copied to =~/Library/LaunchAgents= and loaded like so:
 #+BEGIN_SRC sh
-launchctl load -w ~/Library/LaunchAgents/sync-org-calendar.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sync-org-calendar.plist
 #+END_SRC
 *** Troubleshoot
 On the first run OSX should ask permission for the script (the bash script) to
