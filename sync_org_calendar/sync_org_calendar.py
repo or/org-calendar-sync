@@ -192,7 +192,7 @@ def read_time_from_element(element, which):
         return
 
     value = getattr(element, which).value
-    if isinstance(value, str):
+    if value is None or isinstance(value, str):
         # whichasn't parsed by PyOrgMode, so probably something like
         # <2018-12-09 Sun 06:30 ++2w/3w -2d>
         # ignore these
