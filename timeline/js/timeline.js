@@ -109,11 +109,11 @@ function load(element_id) {
     };
 
     var pickTypeColorMap = {
-        calendar: d3.schemeCategory20[0],
-        ops: d3.schemeCategory20[6],
-        sprint: d3.schemeCategory20[4],
-        extra: d3.schemeCategory20[2],
-        unknown: d3.schemeCategory20[14]
+        calendar: d3.schemePaired[1],
+        ops: d3.schemePaired[5],
+        sprint: d3.schemePaired[3],
+        extra: d3.schemePaired[7],
+        unknown: d3.schemeCategory10[7]
     };
     var pickTypeColor = function(d) {
         return pickTypeColorMap[d];
@@ -127,7 +127,7 @@ function load(element_id) {
         "#a2b86c",
         "#0d3c55",
     ];
-    colorRange = colorRange.concat(d3.schemeCategory20c);
+    colorRange = colorRange.concat(d3.schemePastel1).concat(d3.schemePastel2);
     var colorIndex = 0;
     var colorMap = {};
 
@@ -155,7 +155,7 @@ function load(element_id) {
 
     timeline.load = function(path) {
         console.log("load...");
-        d3.json(path, function(rawData) {
+        d3.json(path).then((rawData) => {
             console.log("received.");
             var typeMap = {};
             data = [];
