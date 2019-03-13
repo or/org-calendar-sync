@@ -31,7 +31,7 @@ function load(element_id) {
 
     var zoom;
 
-    var buildXAxis = function() {
+    var buildXAxis = () => {
         if (gX !== undefined) {
             gX.remove();
         }
@@ -48,7 +48,7 @@ function load(element_id) {
 
         xAxis = d3.axisTop(x)
             .ticks(d3.timeDay.every(tickFrequency))
-            .tickFormat(function(d) {
+            .tickFormat((d) => {
                 if (d < x.domain()[0] || d > x.domain()[1]) {
                     return "";
                 }
@@ -74,7 +74,7 @@ function load(element_id) {
 
     };
 
-    function zoomed() {
+    var zoomed = () => {
         graph.attr("transform", d3.event.transform);
 
         buildXAxis();
@@ -82,13 +82,13 @@ function load(element_id) {
         gY.call(yAxis.scale(d3.event.transform.rescaleY(y)));
         gGx.call(xGrid.scale(d3.event.transform.rescaleX(xGridScale)));
         gGy.call(yGrid.scale(d3.event.transform.rescaleY(yGridScale)));
-    }
+    };
 
     var div = d3.select("body").append("div")
         .attr("class", "tooltip")
         .style("opacity", 0);
 
-    var resize = function() {
+    var resize = () => {
         var element = document.getElementById(graph_element_id.substring(1));
         width = element.clientWidth;
         height = element.clientHeight;
@@ -101,7 +101,7 @@ function load(element_id) {
 
     var oldOnResize = d3.select(window).on("resize");
 
-    var timeOffset = function(t) {
+    var timeOffset = (t) => {
         var tmp = new Date(baseDate);
         tmp.setHours(t.getHours());
         tmp.setMinutes(t.getMinutes());
@@ -115,7 +115,7 @@ function load(element_id) {
         extra: d3.schemePaired[7],
         unknown: d3.schemeCategory10[7]
     };
-    var pickTypeColor = function(d) {
+    var pickTypeColor = (d) => {
         return pickTypeColorMap[d];
     };
 
@@ -131,7 +131,7 @@ function load(element_id) {
     var colorIndex = 0;
     var colorMap = {};
 
-    var pickColor = function(d) {
+    var pickColor = (d) => {
         var name = d.pretty;
         if (!(name in colorMap)) {
             colorMap[name] = colorIndex;
@@ -141,26 +141,26 @@ function load(element_id) {
         return colorRange[colorMap[name]];
     };
 
-    d3.select(window).on("resize", function() {
+    d3.select(window).on("resize", () => {
         if (typeof(oldOnResize) != "undefined") {
             oldOnResize();
         }
         timeline.onResize();
     });
 
-    timeline.onResize = function() {
+    timeline.onResize = () => {
         resize();
         timeline.update();
     };
 
-    timeline.load = function(path) {
+    timeline.load = (path) => {
         console.log("load...");
         d3.json(path).then((rawData) => {
             console.log("received.");
             var typeMap = {};
             data = [];
-            rawData.forEach(function(d) {
-                data = data.concat(d[1].map(function(e) {
+            rawData.forEach((d) => {
+                data = data.concat(d[1].map((e) => {
                     e.start = new Date(e.start);
                     e.end = new Date(e.end);
                     if (e.filename.includes("calendar") || e.path.includes("Meetings")) {
@@ -187,7 +187,7 @@ function load(element_id) {
                     return e;
                 }));
             });
-            data = data.filter(function(d) {
+            data = data.filter((d) => {
                 if (hour(d.start) == "00:00") {
                     return false;
                 }
@@ -202,16 +202,16 @@ function load(element_id) {
         });
     };
 
-    timeline.update = function() {
+    timeline.update = () => {
         if (data === null) {
             return;
         }
 
         var xRange = [
-            d3.min(data, function(d) {
+            d3.min(data, (d) => {
           	    return d3.timeDay.floor(d.start);
             }),
-        	  d3.max(data, function(d) {
+        	  d3.max(data, (d) => {
          		    return d3.timeDay.ceil(d.end);
             })
         ];
@@ -285,8 +285,8 @@ function load(element_id) {
         svg.call(zoom);
     };
 
-    timeline.updateData = function() {
-        var filteredData = data.filter(function(d) {
+    timeline.updateData = () => {
+        var filteredData = data.filter((d) => {
             if (hideTypes[d.type]) {
                 return false;
             }
@@ -302,30 +302,30 @@ function load(element_id) {
             .enter()
             .append("rect")
             .attr("class", "times bar")
-            .attr("x", function(d) {
+            .attr("x", (d) => {
                 return x(d3.timeDay.floor(d.start)) - bar_size / 2;
             })
-            .attr("y", function(d) {
+            .attr("y", (d) => {
                 return y(timeOffset(d.start));
             })
-            .attr("width", function(d) {
+            .attr("width", (d) => {
                 return bar_size;
             })
-            .attr("height", function(d) {
+            .attr("height", (d) => {
                 return Math.max(0, y(timeOffset(d.end)) - y(timeOffset(d.start)));
             })
             .attr("rx", 3)
             .attr("ry", 3)
             .attr("stroke-width", 2)
-            .attr("stroke", function(d) { return pickTypeColor(d.type); })
-            .attr("fill-opacity", function(d) {
+            .attr("stroke", (d) => { return pickTypeColor(d.type); })
+            .attr("fill-opacity", (d) => {
                 if (d.pretty == clickedEntry) {
                     return 1;
                 }
                 return 0.3;
             })
             .attr("fill", pickColor)
-            .on("mouseover", function(d) {
+            .on("mouseover", (d) => {
                 div.transition()
                    .duration(200)
                    .style("opacity", 0.8);
@@ -336,7 +336,7 @@ function load(element_id) {
                 if (clickedEntry != d.pretty) {
                     clickedEntry = d.pretty;
                     graph.selectAll("rect").data(filteredData)
-                        .attr("fill-opacity", function(d) {
+                        .attr("fill-opacity", (d) => {
                             if (d.pretty == clickedEntry) {
                                 return 1;
                             }
@@ -345,12 +345,12 @@ function load(element_id) {
                     ;
                 }
             })
-            .on("mousemove", function(d) {
+            .on("mousemove", (d) => {
                 div
                     .style("left", (d3.event.pageX) + "px")
                     .style("top", (d3.event.pageY - 28) + "px");
             })
-            .on("mouseout", function(d) {
+            .on("mouseout", (d) => {
                 div.transition()
                     .duration(500)
                     .style("opacity", 0);
@@ -358,7 +358,7 @@ function load(element_id) {
                 if (clickedEntry !== null) {
                     clickedEntry = null;
                     graph.selectAll("rect").data(filteredData)
-                        .attr("fill-opacity", function(d) {
+                        .attr("fill-opacity", (d) => {
                             if (d.pretty == clickedEntry) {
                                 return 1;
                             }
@@ -376,7 +376,7 @@ function load(element_id) {
             .enter()
             .append("g")
             .attr("class", "legend clickable")
-            .on("click", function(d) {
+            .on("click", (d) => {
                 if (d in hideTypes) {
                     delete hideTypes[d];
                 } else {
@@ -384,7 +384,7 @@ function load(element_id) {
                 }
                 timeline.updateData();
             })
-            .attr("transform", function(d, i) {
+            .attr("transform", (d, i) => {
                 var x = i * 100;
                 var y = 0;
                 return "translate(" + x + "," + y + ")";
@@ -396,7 +396,7 @@ function load(element_id) {
             .attr("class", "checkbox-edge")
             .attr("width", 16)
             .attr("height", 16)
-            .attr("stroke", function(d) { return pickTypeColor(d); })
+            .attr("stroke", (d) => { return pickTypeColor(d); })
             .attr("stroke-width", 2)
             .attr("fill", "white")
         ;
@@ -408,7 +408,7 @@ function load(element_id) {
             .attr("width", 12)
             .attr("height", 12)
             .attr("stroke-width", 0)
-            .attr("fill", function(d) {
+            .attr("fill", (d) => {
                 if (d in hideTypes) {
                     return "white";
                 }
@@ -420,7 +420,7 @@ function load(element_id) {
             .attr("x", 25)
             .attr("y", 9)
             .attr("dy", ".35em")
-            .text(function(d) { return d; })
+            .text((d) => { return d; })
         ;
     };
 
