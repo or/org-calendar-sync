@@ -278,6 +278,10 @@ function load(element_id) {
         svg.call(zoom);
     };
 
+    var getDataId = (d) => {
+        return d.filename + "-" + d.path + " " + d.name;
+    };
+
     timeline.updateData = () => {
         var filteredData = data.filter((d) => {
             if (hideTypes[d.type]) {
@@ -286,12 +290,12 @@ function load(element_id) {
             return true;
         });
 
-        graph
-            .selectAll("rect").remove();
-
-        graph
+        var rects = graph
             .selectAll("rect")
-            .data(filteredData)
+            .data(filteredData, getDataId);
+
+        rects.exit().remove();
+        rects
             .enter()
             .append("rect")
             .attr("class", "times bar")
