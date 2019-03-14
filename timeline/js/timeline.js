@@ -279,7 +279,19 @@ function load(element_id) {
     };
 
     var getDataId = (d) => {
-        return d.filename + "-" + d.path + " " + d.name;
+        return d;
+    };
+
+    var setFillOpacity = (d) => {
+        if (d.pretty == clickedEntry) {
+            return 1;
+        }
+
+        if (clickedEntry == null) {
+            return 0.3;
+        }
+
+        return 0.3;
     };
 
     timeline.updateData = () => {
@@ -294,7 +306,16 @@ function load(element_id) {
             .selectAll("rect")
             .data(filteredData, getDataId);
 
-        rects.exit().remove();
+        var transition = d3.transition()
+            .duration(500)
+            .ease(d3.easeLinear);
+
+        rects
+            .exit()
+            .transition(transition)
+            .style("opacity", 0)
+            .remove();
+
         rects
             .enter()
             .append("rect")
@@ -315,13 +336,9 @@ function load(element_id) {
             .attr("ry", 3)
             .attr("stroke-width", 2)
             .attr("stroke", (d) => { return pickTypeColor(d.type); })
-            .attr("fill-opacity", (d) => {
-                if (d.pretty == clickedEntry) {
-                    return 1;
-                }
-                return 0.3;
-            })
+            .attr("fill-opacity", setFillOpacity)
             .attr("fill", pickColor)
+            .style("opacity", 0)
             .on("mouseover", (d) => {
                 div.transition()
                    .duration(200)
@@ -332,14 +349,8 @@ function load(element_id) {
 
                 if (clickedEntry != d.pretty) {
                     clickedEntry = d.pretty;
-                    graph.selectAll("rect").data(filteredData)
-                        .attr("fill-opacity", (d) => {
-                            if (d.pretty == clickedEntry) {
-                                return 1;
-                            }
-                            return 0.3;
-                        })
-                    ;
+                    graph.selectAll("rect")
+                        .attr("fill-opacity", setFillOpacity);
                 }
             })
             .on("mousemove", (d) => {
@@ -354,17 +365,12 @@ function load(element_id) {
 
                 if (clickedEntry !== null) {
                     clickedEntry = null;
-                    graph.selectAll("rect").data(filteredData)
-                        .attr("fill-opacity", (d) => {
-                            if (d.pretty == clickedEntry) {
-                                return 1;
-                            }
-                            return 0.3;
-                        })
-                    ;
+                    graph.selectAll("rect")
+                        .attr("fill-opacity", setFillOpacity);
                 }
             })
-				;
+            .transition(transition)
+            .style("opacity", 1);
 
         legendLayer.selectAll(".legend").remove();
 
