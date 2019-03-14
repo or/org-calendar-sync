@@ -2,13 +2,17 @@ function load(element_id) {
     var width;
     var height;
     var graph_element_id = element_id;
-    var bar_size = 30;
+    var bar_size = 20;
     var bar_padding = 5;
 
     var svg = d3.select(graph_element_id)
         .append("svg");
-    var legendLayer;
-    var graph;
+    var legendLayer = svg
+        .append("g")
+        .attr("transform", "translate(20,20)");
+
+    var graph = svg.append("g")
+        .attr("class", "graph");
     var data;
     var displayTypes;
     var hideTypes = {};
@@ -23,40 +27,47 @@ function load(element_id) {
 
     var baseDate = new Date();
 
-    var xAxis, yAxis;
-    var xGrid, yGrid;
+    var xAxis = d3.axisTop(x)
+        .ticks(d3.timeDay.every(5));
+    var yAxis = d3.axisLeft(y)
+        .tickFormat(d3.timeFormat("%H:%M"));
 
-    var gX, gY;
-    var gGx, gGy;
+    var xGrid = d3.axisBottom(xGridScale)
+        .tickSize(0)
+        .ticks(d3.timeDay.every(5))
+				.tickFormat("");
+    var yGrid = d3.axisRight(yGridScale)
+        .ticks(d3.timeHour.every(2))
+				.tickFormat("");
+
+    var gX = svg.append("g")
+        .attr("class", "axis axis--x");
+    var gY = svg.append("g")
+        .attr("class", "axis axis--y");
+
+		var gGx = svg.append("g")
+				.attr("class","x grid");
+		var gGy = svg.append("g")
+				.attr("class","y grid");
 
     var zoom;
+    var zoomK = 0;
 
     var buildXAxis = () => {
-        if (gX !== undefined) {
-            gX.remove();
+        if (d3.event != null && d3.event.transform != null) {
+            zoomK = d3.event.transform.k;
         }
 
-        var tickFrequency = 1;
-        if (d3.event != null) {
-            tickFrequency = Math.floor(Math.pow(2, 4 * (1 - d3.event.transform.k)));
-            if (tickFrequency < 1) {
-                tickFrequency = 1;
-            } else if (tickFrequency > 14) {
-                tickFrequency = 14;
-            }
+        var tickFrequency = Math.floor(Math.pow(2, 4 * (1 - zoomK)));
+        if (tickFrequency < 1) {
+            tickFrequency = 1;
+        } else if (tickFrequency > 14) {
+            tickFrequency = 14;
         }
 
-        xAxis = d3.axisTop(x)
-            .ticks(d3.timeDay.every(tickFrequency))
-            .tickFormat((d) => {
-                if (d < x.domain()[0] || d > x.domain()[1]) {
-                    return "";
-                }
-                return d3.timeFormat("%a, %d %b")(d);
-            });
+        xAxis.ticks(d3.timeDay.every(tickFrequency));
 
-        gX = svg.append("g")
-            .attr("class", "axis axis--x")
+        gX
             .attr("transform", "translate(0," + height + ")")
             .call(xAxis);
 
@@ -67,10 +78,9 @@ function load(element_id) {
             .attr("transform", "rotate(-90)")
             .style("text-anchor", "start");
 
-        xGrid = d3.axisBottom(xGridScale)
+        xGrid
             .tickSize(height)
-            .ticks(d3.timeDay.every(tickFrequency))
-					  .tickFormat("");
+            .ticks(d3.timeDay.every(tickFrequency));
 
     };
 
@@ -93,8 +103,9 @@ function load(element_id) {
         width = element.clientWidth;
         height = element.clientHeight;
 
-        svg.attr("width", width)
-        .attr("height", height);
+        svg
+            .attr("width", width)
+            .attr("height", height);
     };
 
     var timeline = {};
@@ -113,6 +124,7 @@ function load(element_id) {
         ops: d3.schemePaired[5],
         sprint: d3.schemePaired[3],
         extra: d3.schemePaired[7],
+        personal: d3.schemePaired[9],
         unknown: d3.schemeCategory10[7]
     };
     var pickTypeColor = (d) => {
@@ -163,7 +175,9 @@ function load(element_id) {
                 data = data.concat(d[1].map((e) => {
                     e.start = new Date(e.start);
                     e.end = new Date(e.end);
-                    if (e.filename.includes("calendar") || e.path.includes("Meetings")) {
+                    if (e.tags.includes("personal")) {
+                        e.type = "personal";
+                    } else if (e.filename.includes("calendar") || e.path.includes("Meetings")) {
                         e.type = "calendar";
                     } else if (e.filename.includes("oncall") || e.tags.includes("ops")) {
                         e.type = "ops";
@@ -217,7 +231,7 @@ function load(element_id) {
         ];
 
         var yRange = [new Date(baseDate), new Date(baseDate)];
-        yRange[0].setHours(7);
+        yRange[0].setHours(-7);
         yRange[0].setMinutes(0);
         yRange[1].setHours(19);
         yRange[1].setMinutes(0);
@@ -243,43 +257,22 @@ function load(element_id) {
             .domain(yRange)
             .range([0, height]);
 
-        svg.selectAll("g").remove();
-
-        legendLayer = svg
-            .append("g")
-            .attr("transform", "translate(20,20)");
-
         buildXAxis();
-        yAxis = d3.axisLeft(y)
-            .tickFormat(d3.timeFormat("%H:%M"));
-
-        yGrid = d3.axisRight(yGridScale)
-            .tickSize(width)
-            .ticks(d3.timeHour.every(2))
-					  .tickFormat("");
-
-			  gGx = svg.append("g")
-				    .attr("class","x grid")
-				    .call(xGrid);
-
-			  gGy = svg.append("g")
-				    .attr("class","y grid")
-				    .call(yGrid);
-
-        gY = svg.append("g")
-            .attr("class", "axis axis--y")
+        gY
             .attr("transform", "translate(" + width + " ,0)")
             .call(yAxis);
+
+			  gGx.call(xGrid);
+			  gGy.call(yGrid);
+
+        yGrid.tickSize(width);
 
         var minZoom = 0.1;
         zoom = d3.zoom()
             .scaleExtent([minZoom, 40])
             .translateExtent([[(-10 - width) / minZoom, -100 / minZoom],
-                              [(timeline_width + width + 10) / minZoom, (height + 100) / minZoom]])
+                            [(timeline_width + width + 10) / minZoom, (height + 100) / minZoom]])
             .on("zoom", zoomed);
-
-        graph = svg.append("g")
-            .attr("class", "graph");
 
         timeline.updateData();
         svg.call(zoom);
