@@ -1,8 +1,9 @@
 function load(graphElementId) {
     var width;
     var height;
-    var bar_size = 20;
-    var bar_padding = 5;
+    var barSize = 20;
+    var barPadding = 5;
+    var dayHeight = 500;
 
     var svg = d3.select(graphElementId)
         .append("svg");
@@ -25,18 +26,28 @@ function load(graphElementId) {
     var yGridScale = d3.scaleTime();
 
     var baseDate = new Date();
+    baseDate.setHours(0);
+    baseDate.setMinutes(0);
+    baseDate.setSeconds(0);
+
+    var timeTicks = [];
+    for (var i = 0; i <= 24; i += 2) {
+        var tmp = new Date(baseDate);
+        tmp.setHours(i);
+        timeTicks.push(tmp);
+    }
 
     var xAxis = d3.axisTop(x)
-        .ticks(d3.timeDay.every(5));
-    var yAxis = d3.axisLeft(y)
+        .tickFormat(d3.timeFormat("%a %d %b"));
+    var yAxis = d3.axisRight(y)
+        .tickValues(timeTicks)
         .tickFormat(d3.timeFormat("%H:%M"));
 
     var xGrid = d3.axisBottom(xGridScale)
         .tickSize(0)
-        .ticks(d3.timeDay.every(5))
 				.tickFormat("");
     var yGrid = d3.axisRight(yGridScale)
-        .ticks(d3.timeHour.every(2))
+        .tickValues(timeTicks)
 				.tickFormat("");
 
     var gX = svg.append("g")
@@ -49,8 +60,70 @@ function load(graphElementId) {
 		var gGy = svg.append("g")
 				.attr("class","y grid");
 
-    var zoom;
     var zoomK = 0;
+    var minZoom = 0.25;
+    var zoom = d3.zoom()
+        .scaleExtent([minZoom, 40]);
+    svg.call(zoom);
+
+
+    var getWeeklyTicks = (xRange) => {
+        var ticks = [];
+        var current = new Date(xRange[0]);
+        current.setHours(0);
+        current.setMinutes(0);
+        current.setSeconds(0);
+        current.getMilliseconds(0);
+
+        while (current.getDay() != 1) {
+            current = new Date(current.getTime() - 12 * 60 * 60 * 1000);
+            current.setHours(0);
+            current.setMinutes(0);
+            current.setSeconds(0);
+            current.getMilliseconds(0);
+        }
+
+        while (current <= xRange[1]) {
+            ticks.push(new Date(current));
+            current = new Date(current.getTime() + (7 * 24 + 5) * 60 * 60 * 1000);
+            current.setHours(0);
+            current.setMinutes(0);
+            current.setSeconds(0);
+            current.getMilliseconds(0);
+        }
+
+        ticks.push(new Date(current));
+
+        return ticks;
+    };
+
+    var getXTicks = (xRange, tickFrequency) => {
+        var ticks = [];
+        var current = new Date(xRange[0]);
+        current.setHours(0);
+        current.setMinutes(0);
+        current.setSeconds(0);
+        current.getMilliseconds(0);
+
+        while (current.getDay() != 1) {
+            current = new Date(current.getTime() - 12 * 60 * 60 * 1000);
+            current.setHours(0);
+            current.setMinutes(0);
+            current.setSeconds(0);
+            current.getMilliseconds(0);
+        }
+
+        while (current <= xRange[1]) {
+            ticks.push(new Date(current));
+            current = new Date(current.getTime() + (tickFrequency * 24 + 5) * 60 * 60 * 1000);
+            current.setHours(0);
+            current.setMinutes(0);
+            current.setSeconds(0);
+            current.getMilliseconds(0);
+        }
+
+        return ticks;
+    };
 
     var buildXAxis = () => {
         if (d3.event != null && d3.event.transform != null) {
@@ -64,23 +137,34 @@ function load(graphElementId) {
             tickFrequency = 14;
         }
 
-        xAxis.ticks(d3.timeDay.every(tickFrequency));
+        var xRange = [new Date(), new Date()];
+        if (data != null) {
+            xRange = [
+                d3.min(data, (d) => {
+                    return d3.timeDay.floor(d.start);
+                }),
+                d3.max(data, (d) => {
+                    return d3.timeDay.ceil(d.end);
+                })
+            ];
+        }
+
+        xGrid.tickValues(getWeeklyTicks(xRange));
+        xAxis.tickValues(getXTicks(xRange, tickFrequency));
 
         gX
             .attr("transform", "translate(0," + height + ")")
             .call(xAxis);
 
         gX.selectAll("text")
-            .attr("y", 10)
-            .attr("x", 9)
-            .attr("dy", "-.7em")
+            .attr("y", 0)
+            .attr("x", 10)
+            .attr("dy", "1.2em")
             .attr("transform", "rotate(-90)")
             .style("text-anchor", "start");
 
         xGrid
-            .tickSize(height)
-            .ticks(d3.timeDay.every(tickFrequency));
-
+            .tickSize(height);
     };
 
     var zoomed = () => {
@@ -98,7 +182,7 @@ function load(graphElementId) {
         .style("opacity", 0);
 
     var resize = () => {
-        var element = document.getElementById(graph_element_id.substring(1));
+        var element = document.getElementById(graphElementId.substring(1));
         width = element.clientWidth;
         height = element.clientHeight;
 
@@ -212,6 +296,8 @@ function load(graphElementId) {
             console.log(data.length);
 
             timeline.update();
+            timeline.updateData();
+            svg.call(zoom.transform, d3.zoomIdentity);
         });
     };
 
@@ -230,12 +316,12 @@ function load(graphElementId) {
         ];
 
         var yRange = [new Date(baseDate), new Date(baseDate)];
-        yRange[0].setHours(-7);
+        yRange[0].setHours(0);
         yRange[0].setMinutes(0);
-        yRange[1].setHours(19);
+        yRange[1].setHours(24);
         yRange[1].setMinutes(0);
 
-        var timeline_width = (xRange[1] - xRange[0]) / 24 / 60 / 60 / 1000 * (bar_size + bar_padding);
+        var timeline_width = (xRange[1] - xRange[0]) / 24 / 60 / 60 / 1000 * (barSize + barPadding);
         if (timeline_width < width) {
             timeline_width = width;
         }
@@ -246,19 +332,19 @@ function load(graphElementId) {
 
         y
             .domain(yRange)
-            .range([0, height]);
+            .range([0, dayHeight]);
 
         xGridScale
             .domain(xRange)
-            .range([-(bar_size + bar_padding) / 2,
-                    timeline_width - (bar_size + bar_padding) / 2]);
+            .range([-(barSize + barPadding) / 2,
+                    timeline_width - (barSize + barPadding) / 2]);
         yGridScale
             .domain(yRange)
-            .range([0, height]);
+            .range([0, dayHeight]);
 
         buildXAxis();
         gY
-            .attr("transform", "translate(" + width + " ,0)")
+            .attr("transform", "translate(0,0)")
             .call(yAxis);
 
 			  gGx.call(xGrid);
@@ -266,15 +352,10 @@ function load(graphElementId) {
 
         yGrid.tickSize(width);
 
-        var minZoom = 0.1;
-        zoom = d3.zoom()
-            .scaleExtent([minZoom, 40])
-            .translateExtent([[(-10 - width) / minZoom, -100 / minZoom],
-                            [(timeline_width + width + 10) / minZoom, (height + 100) / minZoom]])
+        zoom
+            .translateExtent([[-width / 2 / minZoom, (-height + 30) / minZoom * (1 - minZoom)],
+                              [timeline_width + width / 2 / minZoom, (height - 30) / minZoom]])
             .on("zoom", zoomed);
-
-        timeline.updateData();
-        svg.call(zoom);
     };
 
     var getDataId = (d) => {
@@ -320,13 +401,13 @@ function load(graphElementId) {
             .append("rect")
             .attr("class", "times bar")
             .attr("x", (d) => {
-                return x(d3.timeDay.floor(d.start)) - bar_size / 2;
+                return x(d3.timeDay.floor(d.start)) - barSize / 2;
             })
             .attr("y", (d) => {
                 return y(timeOffset(d.start));
             })
             .attr("width", (d) => {
-                return bar_size;
+                return barSize;
             })
             .attr("height", (d) => {
                 return Math.max(0, y(timeOffset(d.end)) - y(timeOffset(d.start)));
