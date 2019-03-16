@@ -1,11 +1,10 @@
-function load(element_id) {
+function load(graphElementId) {
     var width;
     var height;
-    var graph_element_id = element_id;
     var bar_size = 20;
     var bar_padding = 5;
 
-    var svg = d3.select(graph_element_id)
+    var svg = d3.select(graphElementId)
         .append("svg");
     var legendLayer = svg
         .append("g")
