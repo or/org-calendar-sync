@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import itertools
 import json
 import os
 import os.path
@@ -19,12 +20,18 @@ from sync_org_calendar import get_events, import_to_org, collect_times_from_org_
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-org_directory = None
+org_directories = []
 calendars_to_serve = {}
 
 def get_org_files():
-    return glob(expanduser(expanduser(os.path.join(org_directory, "**/*.org"))), recursive=True) + \
-        glob(expanduser(expanduser(os.path.join(org_directory, "**/*.org_archive"))), recursive=True)
+    files = list(itertools.chain(*list(
+         glob(expanduser(expanduser(os.path.join(d, "**/*.org"))), recursive=True) + \
+         glob(expanduser(expanduser(os.path.join(d, "**/*.org_archive"))), recursive=True)
+         for d in org_directories)))
+
+    print(files)
+    print("\n".join(files))
+    return files
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -167,8 +174,8 @@ def create_calendar(files, which):
     cal.add('calscale', "GREGORIAN")
     cal.add("X-WR-CALNAME;VALUE=TEXT", which)
     cal.add("X-WR-CALDESC;VALUE=TEXT", which + " imported from org-mode")
-    min_time = datetime.now(TIMEZONE) - timedelta(days=30)
-    max_time = datetime.now(TIMEZONE) + timedelta(days=30)
+    min_time = datetime.now(TIMEZONE) - timedelta(days=90)
+    max_time = datetime.now(TIMEZONE) + timedelta(days=90)
     for clock in filter(lambda x: x["kind"] == which, results):
         path = clock["path"]
         start = clock["start"]
@@ -211,9 +218,9 @@ def load_calendars(config):
     return calendars
 
 def serve_calendars(config):
-    global calendars_to_serve, org_directory
+    global calendars_to_serve, org_directories
     calendars_to_serve = load_calendars(config)
-    org_directory = config.get("serve", "org_directory")
+    org_directories = config.get("serve", "org_directories").split(":")
 
     if config.has_option("serve", "port"):
         port = config.getint("serve", "port")

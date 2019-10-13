@@ -2,9 +2,9 @@
 # port to run the HTTP server on
 port = 8991
 
-# the directory to recursively look for *.org and *.org_archive files to parse
-# for times/events
-org_directory = ~/org
+# the directories to recursively look for *.org and *.org_archive files to parse
+# for times/events, separated by ":"
+org_directories = ~/org
 
 [import]
 # how often to import system calendars
