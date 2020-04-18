@@ -1,4 +1,7 @@
 pyobjc==5.1.1
 git+https://github.com/or/PyOrgMode
-icalendar==4.0.3
+icalendar==4.0.4
 tzlocal==1.5.1
+google-api-python-client==1.7.11
+google-auth-httplib2==0.0.3
+google-auth-oauthlib==0.4.1
