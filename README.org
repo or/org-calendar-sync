@@ -70,6 +70,16 @@ example. It needs to be copied to =~/Library/LaunchAgents= and loaded like so:
 #+BEGIN_SRC sh
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sync-org-calendar.plist
 #+END_SRC
+This doesn't seem to work well, because launchctl doesn't ask for permissions to
+access the Calendar, so it always fails.
+*** Run as Login Item with Automator app
+- run Automator.app
+- create an "Application" of type "Run Shell Script"
+- add:
+#+begin_src sh
+start-sync-org-calendar.sh 2>>/tmp/sync-org-calendars.stderr 1>>/tmp/sync-org-calendars.stdout &
+#+end_src
+- save and add to Login Items
 *** Troubleshoot
 On the first run OSX should ask permission for the script (the bash script) to
 access Calendar events, this needs to be granted.
@@ -80,3 +90,5 @@ killing the running instance):
 #+BEGIN_SRC sh
 tccutil reset Calendar
 #+END_SRC
+
+#+RESULTS:
