@@ -235,8 +235,8 @@ def serve_calendars(config):
         print(f"    serving http://127.0.0.1:{port}/mail/")
         for name, calendar in calendars_to_serve.items():
             print(f"    serving http://127.0.0.1:{port}/calendar/{name}/")
-            for w in ORG_CALENDARS:
-                print(f"    serving http://127.0.0.1:{port}/org/{w}/")
+        for w in ORG_CALENDARS:
+            print(f"    serving http://127.0.0.1:{port}/org/{w}/")
 
         httpd.serve_forever()
     except Exception as e:
